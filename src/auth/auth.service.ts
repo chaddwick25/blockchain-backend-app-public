@@ -15,6 +15,7 @@ import { recoverPersonalSignature } from '@metamask/eth-sig-util';
 import { createCipheriv, randomBytes, scrypt, createDecipheriv } from 'crypto';
 import { promisify } from 'util';
 import { UtilsService } from 'src/utils/utils.service';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class AuthService {
@@ -29,6 +30,7 @@ export class AuthService {
 
     private readonly avaxService: UtilsService,
 
+    private configService: ConfigService
   ) {}
 
   async validateUser(loginData: LoginUserDto) {
@@ -131,8 +133,8 @@ export class AuthService {
   private async encrypt(textToEncrypt: string) {
     const iv = randomBytes(16);
     const key = (await promisify(scrypt)(
-      String(process.env.ENCRYPTION_PASSWORD),
-      String(process.env.ENCRYPTION_SALT),
+      this.configService.get<string>('ENCRYPTION_PASSWORD'),
+      this.configService.get<string>('ENCRYPTION_SALT'),
       32,
     )) as Buffer;
 
@@ -148,10 +150,12 @@ export class AuthService {
     };
 }
 
+
+
 private async decrypt(encryptedText: string, iv: string) {
     const key = (await promisify(scrypt)(
-      String(process.env.ENCRYPTION_PASSWORD),
-      String(process.env.ENCRYPTION_SALT),
+      this.configService.get<string>('ENCRYPTION_PASSWORD'),
+      this.configService.get<string>('ENCRYPTION_SALT'),
       32,
     )) as Buffer;
 
