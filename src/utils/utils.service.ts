@@ -46,17 +46,19 @@ export interface Transactions {
 import { HttpException, HttpStatus } from '@nestjs/common';
 import * as argon2 from 'argon2';
 import  apiConfig from '../config/utils';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class UtilsService implements OnModuleInit {
   constructor(
     @InjectRepository(Token)
-      private tokenRepository: EntityRepository<Token>,
+    private tokenRepository: EntityRepository<Token>,
+    
+    private configService: ConfigService
   ) {}
 
-  private apiConfig = apiConfig().apiConfig
-
   // chain config variables
+  private apiConfig = apiConfig().apiConfig
   private avalancheAPI: Avalanche;
   private xchain: AVMAPI;
   private cchain: EVMAPI;
@@ -272,8 +274,7 @@ export class UtilsService implements OnModuleInit {
 
   // https://github.com/ava-labs/avalanchejs/blob/cba408fadf52c4a36a13f378e3a3c89f5778aa51/examples/evm/buildImportTx-xchain.ts
   async receiveAntsFromXtoC(assetID) {
-
-    const cHexAddress: string = String(process.env.HEX_ADDRESS);
+    const cHexAddress = this.configService.get<string>('HEX_ADDRESS');
     const baseFeeResponse: string = await this.cchain.getBaseFee();
     const baseFee = new BN(parseInt(baseFeeResponse, 16) / 1e9);
     let fee: BN = baseFee;
@@ -426,7 +427,7 @@ export class UtilsService implements OnModuleInit {
 
   async validateMnemonic(language: string = 'english'): Promise<boolean> {
     const mnemonic: Mnemonic = Mnemonic.getInstance();
-    const m = String(process.env.MNEMONIC);
+    const m = String(this.configService.get<string>('MNEMONIC'));
     const wordlist = (await mnemonic.getWordlists(language)) as string[];
     const validateMnemonic: string = String(
       mnemonic.validateMnemonic(m, wordlist),
@@ -441,7 +442,7 @@ export class UtilsService implements OnModuleInit {
   private getPrivateKeyFromMnemonic(activeIndex = 0): string {
     const mnemonic: Mnemonic = Mnemonic.getInstance();
     const mnemonicToSeedSync: Buffer = mnemonic.mnemonicToSeedSync(
-      String(process.env.MNEMONIC),
+      this.configService.get<string>('MNEMONIC')
     );
     const hdNode = new HDNode(mnemonicToSeedSync);
     const avaPath = `m/44'/9000'/0'/0/${activeIndex}`;
