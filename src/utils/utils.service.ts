@@ -45,32 +45,26 @@ export interface Transactions {
 }
 import { HttpException, HttpStatus } from '@nestjs/common';
 import * as argon2 from 'argon2';
+import  apiConfig from '../config/utils';
 
 @Injectable()
 export class UtilsService implements OnModuleInit {
-
   constructor(
     @InjectRepository(Token)
       private tokenRepository: EntityRepository<Token>,
   ) {}
 
-  // connection credentials
-  private avalancheAPI: Avalanche;
-  private avax_username = String(process.env.AVAX_USER);
-  private avax_user_password = String(process.env.AVAX_USER_PASSWORD);
-  private protocol = String(process.env.PROTOCOL);
-  private host = String(process.env.HOST);
-  private port = Number(process.env.AVAX_API_PORT);
-  private networkID = Number(process.env.NETWORK_ID);
+  private apiConfig = apiConfig().apiConfig
 
   // chain config variables
+  private avalancheAPI: Avalanche;
   private xchain: AVMAPI;
   private cchain: EVMAPI;
   private pchain: PlatformVMAPI;
   private cAddressStrings: string[];
   private xAddressStrings: string[];
-  private xChainBlockchainId: string = Defaults.network[this.networkID].X.blockchainID;
-  private cChainBlockchainID: string = Defaults.network[this.networkID].C.blockchainID;
+  private xChainBlockchainId: string = Defaults.network[this.apiConfig.networkID].X.blockchainID;
+  private cChainBlockchainID: string = Defaults.network[this.apiConfig.networkID].C.blockchainID;
   private xKeychain: KeyChain;
   private cKeychain: EVMKeyChain;
   private avaxAssetID: string;
@@ -79,10 +73,10 @@ export class UtilsService implements OnModuleInit {
   // acts as a "constructor" for a provider/class member variables at the top of the stack
   async onModuleInit(): Promise<void> {
     this.avalancheAPI = await new Avalanche(
-      this.host,
-      this.port,
-      this.protocol,
-      this.networkID,
+      this.apiConfig.host,
+      this.apiConfig.port,
+      this.apiConfig.protocol,
+      this.apiConfig.networkID,
     );
     this.xchain = this.avalancheAPI.XChain();
     this.cchain = this.avalancheAPI.CChain();
@@ -94,8 +88,8 @@ export class UtilsService implements OnModuleInit {
     this.cKeychain.importKey(privKey);
     this.cAddressStrings = this.cKeychain.getAddressStrings();
     this.xAddressStrings = this.xKeychain.getAddressStrings();
-    this.avaxAssetID = Defaults.network[this.networkID].X.avaxAssetID 
-    this.cHexAddress = await this.cchain.importKey(this.avax_username, this.avax_user_password, privKey)
+    this.avaxAssetID = Defaults.network[this.apiConfig.networkID].X.avaxAssetID 
+    this.cHexAddress = await this.cchain.importKey(this.apiConfig.avax_username, this.apiConfig.avax_user_password, privKey)    
   }
 
   async getAvaxAdmins() {
@@ -135,7 +129,7 @@ export class UtilsService implements OnModuleInit {
     const path: string = '/ext/bc/C/rpc';
     const web3: any = new Web3(
       new Web3.providers.HttpProvider(
-        `${this.protocol}://${this.host}:${this.port}${path}`,
+        `${this.apiConfig.protocol}://${this.apiConfig.host}:${this.apiConfig.port}${path}`,
       ),
     );
     let balance: BN = await web3.eth.getBalance(cHexAddress);
@@ -457,8 +451,8 @@ export class UtilsService implements OnModuleInit {
 
   async listAddresses(): Promise<string[]> {
     const addresses: string[] = await this.xchain.listAddresses(
-      this.avax_username,
-      this.avax_user_password,
+      this.apiConfig.avax_username,
+      this.apiConfig.avax_user_password,
     );
     return addresses;
   }
@@ -473,8 +467,8 @@ export class UtilsService implements OnModuleInit {
   //TODO: refactor to recieve variables
   async createAddress(){
     const address: string = await this.xchain.createAddress(
-      this.avax_username,
-      this.avax_user_password,
+      this.apiConfig.avax_username,
+      this.apiConfig.avax_user_password,
     );
     return address;
   }
