@@ -1,6 +1,6 @@
 import { EntityRepository, wrap } from '@mikro-orm/core';
 import { InjectRepository } from '@mikro-orm/nestjs';
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, HttpException, HttpStatus} from '@nestjs/common';
 import { User } from '@entities/user.entities';
 import { UserResponse } from './dtos/user-response.dto';
 
@@ -11,11 +11,7 @@ export class UsersService {
     private usersRepository: EntityRepository<User>,
   ) {}
 
-  async createUser(createUserRequest: Partial<User>) {
-    const user = await this.usersRepository.create(createUserRequest);
-    return new UserResponse(user);
-  }
-
+  //TODO: rename to update 
   async updateUser(id: string, dto: Partial<User>) {
     const user = await this.usersRepository.findOneOrFail({ id });
     wrap(user).assign(dto);

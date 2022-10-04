@@ -17,11 +17,6 @@ import { UsersService } from './users.service';
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
-  @Post()
-  async createUser(@Body() createUserRequest: UserDto) {
-    return this.usersService.createUser(createUserRequest);
-  }
-
   @Get('/profile')
   async getUser(@Request() req) {
     return this.usersService.getUserById(req.user.id);

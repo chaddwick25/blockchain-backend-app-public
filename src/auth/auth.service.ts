@@ -5,7 +5,8 @@ import {
   BadRequestException,
   Injectable,
   UnauthorizedException,
-  ForbiddenException
+  ForbiddenException,
+  HttpException, HttpStatus
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { LoginUserDto } from 'src/users/dtos/user-login.dto';
@@ -16,6 +17,7 @@ import { createCipheriv, randomBytes, scrypt, createDecipheriv } from 'crypto';
 import { promisify } from 'util';
 import { UtilsService } from 'src/utils/utils.service';
 import { ConfigService } from '@nestjs/config';
+import { validate } from 'class-validator'
 
 @Injectable()
 export class AuthService {
@@ -47,14 +49,26 @@ export class AuthService {
     return {user:user, access_token: this.jwtService.sign(payload)};
   }
 
-  async addUser(user: Partial<User>) {
-    try {
-      const newUser = this.userRepo.create(user);
-      await newUser.updatePassword(user.password);
-      await this.userRepo.persistAndFlush(newUser);
-      return new UserResponse(newUser);
-    } catch (_err) {
-      throw new BadRequestException();
+  async addUser(dto: Partial<User>) {
+    const { email, password } = dto;
+    const exists = await this.userRepo.count({ $or: [{ email }] });
+    if (exists > 0) {
+      throw new HttpException({
+        message: 'Input data validation failed',
+        errors: { username: 'Email must be unique.' },
+      }, HttpStatus.BAD_REQUEST);
+    }
+    const user = await this.userRepo.create(dto);
+    const errors = await validate(user);
+  
+    if (errors.length > 0) {
+      throw new HttpException({
+        message: 'Input data validation failed',
+        errors: { username: 'Userinput is not valid.' },
+      }, HttpStatus.BAD_REQUEST);
+    } else {
+      await this.userRepo.persistAndFlush(user);
+      return new UserResponse(user);
     }
   }
 
