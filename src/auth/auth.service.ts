@@ -13,7 +13,7 @@ import { LoginUserDto } from 'src/users/dtos/user-login.dto';
 import { UserResponse } from '../users/dtos/user-response.dto';
 import { Metamask } from '@entities/metamask.entities';
 import { recoverPersonalSignature } from '@metamask/eth-sig-util';
-import { createCipheriv, randomBytes, scrypt, createDecipheriv } from 'crypto';
+import { createCipheriv, randomBytes, scrypt, createDecipheriv} from 'crypto';
 import { promisify } from 'util';
 import { UtilsService } from 'src/utils/utils.service';
 import { ConfigService } from '@nestjs/config';
@@ -37,15 +37,33 @@ export class AuthService {
 
   async validateUser(loginData: LoginUserDto) {
     const user = await this.userRepo.findOneOrFail({ email: loginData.email });
-    if (!(await user.verifyPassword(loginData.password))) {
-      throw new UnauthorizedException();
+    const errors = await validate(user);
+    if (errors.length > 0) {
+      throw new HttpException({
+        message: 'Input data validation failed',
+        errors: { username: 'Userinput is not valid.' },
+      }, HttpStatus.BAD_REQUEST);
+    } else {
+      if (!(await user.verifyPassword(loginData.password))) {
+        throw new HttpException({
+          message: 'Input data validation failed',
+          errors: { username: 'user credentials incorrect' },
+        }, HttpStatus.BAD_REQUEST);
+      }
+      return user;
     }
-    return user;
   }
 
   async login(credentials: UserResponse){
     const payload = { email: credentials.email, sub: credentials.id };
     const user = await this.userRepo.findOneOrFail({ email: credentials.email});
+    const errors = await validate(user);
+    if (errors.length > 0) {
+      throw new HttpException({
+        message: 'Input data validation failed',
+        errors: { username: 'Userinput is not valid.' },
+      }, HttpStatus.BAD_REQUEST);
+    }
     return {user:user, access_token: this.jwtService.sign(payload)};
   }
 
@@ -59,8 +77,7 @@ export class AuthService {
       }, HttpStatus.BAD_REQUEST);
     }
     const user = await this.userRepo.create(dto);
-    const errors = await validate(user);
-  
+    const errors = await validate(user);  
     if (errors.length > 0) {
       throw new HttpException({
         message: 'Input data validation failed',
@@ -80,9 +97,7 @@ export class AuthService {
     }
     // The user document does not exist, create it first
     const nonce = Math.floor(Math.random() * 1000000).toString();
-    // Create an Auth user
     await this.metamaskRepo.persistAndFlush(this.metamaskRepo.create({ address, nonce }));
-    return { nonce };
   }   
 
   async verifySignedMsg(address:string, signature:string){
@@ -101,7 +116,10 @@ export class AuthService {
 
     // See if that matches the address the user is claiming the signature is from
     if (recoveredAddress !== address) {
-      throw new UnauthorizedException();
+      throw new HttpException({
+        message: 'Input data validation failed',
+        errors: { address: 'Failed to recover signed signature'},
+      }, HttpStatus.BAD_REQUEST);
     }
 
     // update nonce
@@ -121,22 +139,14 @@ export class AuthService {
     if (!profile.avaxUserName) {
       const { address } = profile
       const encrypted: { encryptedText: string, iv: string} = await this.encrypt(address)
-      try {
-          // TODO: Refactor the solution below this is not SAFE 
-          // there is no "Update" function available on Avax's endpoint
-          // add another layer of encryption
-          const isUserCreated = await this.avaxService.createAvaxUser(encrypted.encryptedText, encrypted.encryptedText)
-          // https://docs.avax.network/apis/avalanchego/apis/keystore#keystorecreateuser
-          // the endpoint returns a empty object because why not ?
-          if(typeof isUserCreated !== 'object'){
-            throw new BadRequestException();
-          }
-          profile.iv = encrypted.iv
-          profile.avaxUserName = encrypted.encryptedText
-          await this.metamaskRepo.persistAndFlush(profile);
-      } catch (error){
-        throw new BadRequestException();
-      }
+      // TODO: Refactor the solution below this is not SAFE 
+      // there is no "Update" function available on Avax's endpoint
+      // add another layer of encryption
+      // https://docs.avax.network/apis/avalanchego/apis/keystore#keystorecreateuser
+      const isUserCreated = await this.avaxService.createAvaxUser(encrypted.encryptedText, encrypted.encryptedText)
+      profile.iv = encrypted.iv
+      profile.avaxUserName = encrypted.encryptedText
+      await this.metamaskRepo.persistAndFlush(profile);
     }
   }
 
@@ -151,20 +161,24 @@ export class AuthService {
       this.configService.get<string>('ENCRYPTION_SALT'),
       32,
     )) as Buffer;
-
-    const cipher = createCipheriv('aes-256-ctr', key, iv);    
-    const encryptedText = Buffer.concat([
-      cipher.update(textToEncrypt),
-      cipher.final(),
-    ]);
-    // convert Buffer to hex for database storage    
-    return {
-      encryptedText: encryptedText.toString('hex'),
-      iv: iv.toString('hex'),
-    };
+    try {
+      const cipher = createCipheriv('aes-256-ctr', key, iv);    
+      const encryptedText = Buffer.concat([
+        cipher.update(textToEncrypt),
+        cipher.final(),
+      ]);
+      // convert Buffer to hex for database storage    
+      return {
+        encryptedText: encryptedText.toString('hex'),
+        iv: iv.toString('hex'),
+      };
+    } catch (err) {
+      throw new HttpException({
+        message: 'Authentication failed',
+        errors: err,
+      }, HttpStatus.INTERNAL_SERVER_ERROR);
+    } 
 }
-
-
 
 private async decrypt(encryptedText: string, iv: string) {
     const key = (await promisify(scrypt)(
@@ -172,17 +186,21 @@ private async decrypt(encryptedText: string, iv: string) {
       this.configService.get<string>('ENCRYPTION_SALT'),
       32,
     )) as Buffer;
-
     // convert the encryptedText and iv back to Buffer
     const ivBuffer = Buffer.from(iv, 'hex');
-    const encryptedTextBuffer = Buffer.from(encryptedText, 'hex');
-
-    const decipher = createDecipheriv('aes-256-ctr', key, ivBuffer);
-    const decryptedText = Buffer.concat([
-      decipher.update(encryptedTextBuffer),
-      decipher.final(),
-    ]);
-    return decryptedText.toString();
+    const encryptedTextBuffer = Buffer.from(encryptedText, 'hex');  
+    try {
+      const decipher = createDecipheriv('aes-256-ctr', key, ivBuffer);
+      const decryptedText = Buffer.concat([
+        decipher.update(encryptedTextBuffer),
+        decipher.final(),
+      ]);
+      return decryptedText.toString();
+    } catch (err) {
+      throw new HttpException({
+        message: 'Authentication failed',
+        errors: err,
+      }, HttpStatus.INTERNAL_SERVER_ERROR);
+    } 
   }
-
 }
