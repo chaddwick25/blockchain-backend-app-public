@@ -1,4 +1,5 @@
 import { User } from '@entities/user.entities';
+import { Metamask } from '@entities/metamask.entities';
 import { EntityRepository } from '@mikro-orm/mongodb';
 import { getRepositoryToken } from '@mikro-orm/nestjs';
 import { JwtService } from '@nestjs/jwt';
@@ -19,6 +20,10 @@ describe('AuthService', () => {
         AuthService,
         {
           provide: getRepositoryToken(User),
+          useValue: EntityRepository,
+        },
+        {
+          provide: getRepositoryToken(Metamask),
           useValue: EntityRepository,
         },
         JwtService,
