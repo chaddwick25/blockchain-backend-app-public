@@ -13,7 +13,6 @@ import { LoginUserDto } from 'src/users/dtos/user-login.dto';
 import { UserResponse } from '../users/dtos/user-response.dto';
 import { Metamask } from '@entities/metamask.entities';
 import { recoverPersonalSignature } from '@metamask/eth-sig-util';
-import { ConfigService } from '@nestjs/config';
 import { validate } from 'class-validator'
 
 @Injectable()
@@ -27,7 +26,6 @@ export class AuthService {
     
     private readonly jwtService: JwtService,
 
-    private configService: ConfigService
   ) {}
 
   async validateUser(loginData: LoginUserDto) {
