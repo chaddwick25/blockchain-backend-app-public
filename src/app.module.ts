@@ -7,7 +7,6 @@ import { AuthModule } from './auth/auth.module';
 import { UsersController } from './users/users.controller';
 import { UsersModule } from './users/users.module';
 import { AvalancheModule } from './avalanche/avalanche.module';
-import { MetamaskModule } from './metamask/metamask.module';
 
 @Module({
   imports: [
@@ -26,7 +25,6 @@ import { MetamaskModule } from './metamask/metamask.module';
     AvalancheModule,
     UsersModule,
     AuthModule,
-    MetamaskModule,
   ],
   controllers: [UsersController, AuthController],
   providers: [AppService],

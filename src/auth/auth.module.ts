@@ -5,7 +5,6 @@ import { MikroOrmModule } from '@mikro-orm/nestjs';
 import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
-import { MetamaskModule } from 'src/metamask/metamask.module';
 import { AvalancheModule } from 'src/avalanche/avalanche.module';
 import { AvalancheService } from 'src/avalanche/avalanche.service';
 import { UsersModule } from '../users/users.module';
@@ -18,7 +17,6 @@ import { LocalStrategy } from './strategies/local.strategy';
 @Module({
   imports: [
     AvalancheModule,
-    MetamaskModule,
     UsersModule,
     MikroOrmModule.forFeature([User]),
     MikroOrmModule.forFeature([Metamask]),
