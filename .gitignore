@@ -4,6 +4,7 @@
 *.tsbuildinfo
 
 .DS_Store
+requests.http
 
 # Logs
 logs

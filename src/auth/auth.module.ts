@@ -6,8 +6,8 @@ import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { MetamaskModule } from 'src/metamask/metamask.module';
-import { UtilsModule } from 'src/utils/utils.module';
-import { UtilsService } from 'src/utils/utils.service';
+import { AvalancheModule } from 'src/avalanche/avalanche.module';
+import { AvalancheService } from 'src/avalanche/avalanche.service';
 import { UsersModule } from '../users/users.module';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
@@ -17,7 +17,7 @@ import { LocalStrategy } from './strategies/local.strategy';
 
 @Module({
   imports: [
-    UtilsModule,
+    AvalancheModule,
     MetamaskModule,
     UsersModule,
     MikroOrmModule.forFeature([User]),
@@ -34,7 +34,7 @@ import { LocalStrategy } from './strategies/local.strategy';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, LocalStrategy, JwtStrategy, JwtMetaMaskStrategy, UtilsService],
+  providers: [AuthService, LocalStrategy, JwtStrategy, JwtMetaMaskStrategy, AvalancheService],
   exports: [AuthService, JwtMetaMaskStrategy],
 })
 export class AuthModule {}

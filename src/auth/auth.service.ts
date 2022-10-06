@@ -15,7 +15,6 @@ import { Metamask } from '@entities/metamask.entities';
 import { recoverPersonalSignature } from '@metamask/eth-sig-util';
 import { createCipheriv, randomBytes, scrypt, createDecipheriv} from 'crypto';
 import { promisify } from 'util';
-import { UtilsService } from 'src/utils/utils.service';
 import { ConfigService } from '@nestjs/config';
 import { validate } from 'class-validator'
 
@@ -29,8 +28,6 @@ export class AuthService {
     private metamaskRepo: EntityRepository<Metamask>,
     
     private readonly jwtService: JwtService,
-
-    private readonly avaxService: UtilsService,
 
     private configService: ConfigService
   ) {}
@@ -127,27 +124,10 @@ export class AuthService {
     await this.metamaskRepo.persistAndFlush(user);
     
     const { id } = user;
-    // create Avalanche profile
-    const avaxProfile = await this.createAvaxProfile(id)
+
     // generate metamask jwt
     const metamask_token:string = await this.jwtService.sign({id, address});
     return { metamask_token };
-  }
-
-  private async createAvaxProfile(id:string){
-    const profile = await this.metamaskRepo.findOne({id});
-    if (!profile.avaxUserName) {
-      const { address } = profile
-      const encrypted: { encryptedText: string, iv: string} = await this.encrypt(address)
-      // TODO: Refactor the solution below this is not SAFE 
-      // there is no "Update" function available on Avax's endpoint
-      // add another layer of encryption
-      // https://docs.avax.network/apis/avalanchego/apis/keystore#keystorecreateuser
-      const isUserCreated = await this.avaxService.createAvaxUser(encrypted.encryptedText, encrypted.encryptedText)
-      profile.iv = encrypted.iv
-      profile.avaxUserName = encrypted.encryptedText
-      await this.metamaskRepo.persistAndFlush(profile);
-    }
   }
 
   private toHex(stringToConvert: string) {

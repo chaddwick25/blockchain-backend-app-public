@@ -6,7 +6,7 @@ import { AuthController } from './auth/auth.controller';
 import { AuthModule } from './auth/auth.module';
 import { UsersController } from './users/users.controller';
 import { UsersModule } from './users/users.module';
-import { UtilsModule } from './utils/utils.module';
+import { AvalancheModule } from './avalanche/avalanche.module';
 import { MetamaskModule } from './metamask/metamask.module';
 
 @Module({
@@ -23,7 +23,7 @@ import { MetamaskModule } from './metamask/metamask.module';
       }),
       inject: [ConfigService],
     }),
-    UtilsModule,
+    AvalancheModule,
     UsersModule,
     AuthModule,
     MetamaskModule,

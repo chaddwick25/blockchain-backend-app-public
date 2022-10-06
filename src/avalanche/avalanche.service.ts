@@ -49,7 +49,7 @@ import  apiConfig from '../config/utils';
 import { ConfigService } from '@nestjs/config';
 
 @Injectable()
-export class UtilsService implements OnModuleInit {
+export class AvalancheService implements OnModuleInit {
   constructor(
     @InjectRepository(Token)
     private tokenRepository: EntityRepository<Token>,
@@ -99,6 +99,23 @@ export class UtilsService implements OnModuleInit {
     const users: string[] = await keystore.listUsers();
     return users;
   }
+
+  //TODO: implement and test
+  // private async createAvaxProfile(id:string){
+  //   const profile = await this.metamaskRepo.findOne({id});
+  //   if (!profile.avaxUserName) {
+  //     const { address } = profile
+  //     const encrypted: { encryptedText: string, iv: string} = await this.encrypt(address)
+  //     // TODO: Refactor the solution below this is not SAFE 
+  //     // there is no "Update" function available on Avax's endpoint
+  //     // add another layer of encryption
+  //     // https://docs.avax.network/apis/avalanchego/apis/keystore#keystorecreateuser
+  //     const isUserCreated = await this.avaxService.createAvaxUser(encrypted.encryptedText, encrypted.encryptedText)
+  //     profile.iv = encrypted.iv
+  //     profile.avaxUserName = encrypted.encryptedText
+  //     await this.metamaskRepo.persistAndFlush(profile);
+  //   }
+  // }
   
   async getChainBalance(chain: getChainBalanceDto){
     switch (chain.chainType) {

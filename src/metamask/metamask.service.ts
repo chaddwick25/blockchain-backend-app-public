@@ -32,4 +32,20 @@ export class MetamaskService {
      const user = this.repo.findOne({id});
     //TODO: look into a custom implementation
   }
+  
+  // createAvaxProfile(id:string){
+  //   const profile = await this.metamaskRepo.findOne({id});
+  //   if (!profile.avaxUserName) {
+  //     const { address } = profile
+  //     const encrypted: { encryptedText: string, iv: string} = await this.encrypt(address)
+  //     // TODO: Refactor the solution below this is not SAFE 
+  //     // there is no "Update" function available on Avax's endpoint
+  //     // add another layer of encryption
+  //     // https://docs.avax.network/apis/avalanchego/apis/keystore#keystorecreateuser
+  //     const isUserCreated = await this.avaxService.createAvaxUser(encrypted.encryptedText, encrypted.encryptedText)
+  //     profile.iv = encrypted.iv
+  //     profile.avaxUserName = encrypted.encryptedText
+  //     await this.metamaskRepo.persistAndFlush(profile);
+  //   }
+  // }
 }

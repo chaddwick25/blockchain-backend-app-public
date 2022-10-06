@@ -1,77 +1,83 @@
 import { Controller, Get, Post, Body } from '@nestjs/common';
-import { UtilsService } from './utils.service';
+import { AvalancheService } from './avalanche.service';
 import { MintAssetUtilDto } from './dtos/request/mint-asset-util.dto';
 import { CreateAvaxUser } from './dtos/request/create-avax-user.dto';
 import { getChainBalanceDto } from './dtos/request/get-chain-balance.dto';
 import { Transactions, Token } from '@entities/token.entities';
 
-@Controller('utils')
-export class UtilsController {
-  constructor(private readonly utilsService: UtilsService) {}
+@Controller('Avalanche')
+export class AvalancheController {
+  constructor(private readonly avalancheService: AvalancheService) {}
 
   @Get('/blockinfo')
   async blockinfo() {
-    return this.utilsService.getBlockchainData();
+    return this.avalancheService.getBlockchainData();
   }
 
   // TODO: test and validate
   @Get('/getXChainAssets')
-  async getXChainAssets( @Body() address: string) {
-    return await this.utilsService.getXChainAssets(address);
+  async getXChainAssets(address: string = 'X-fuji1acdjwme52sraxm2ssmlcc8zty37vys7qthd7g5') {
+    return await this.avalancheService.getXChainAssets(address);
   }
 
   @Post('/getUserTokens')
   async getUserTokens(
       address: string,
   ) {
-    return await this.utilsService.getUserTokens(address);
+    return await this.avalancheService.getUserTokens(address);
   }
 
   @Post('/getChainBalance')
   async getChainBalance(@Body() chainData: getChainBalanceDto) {
-    return await this.utilsService.getChainBalance(chainData);
+    return await this.avalancheService.getChainBalance(chainData);
   }
 
   // recieves the destination address for the exported asset
   //TODO: test and validate
   @Get('/importANT')
   async importANT(@Body() avaxAssetID: string) {
-    return this.utilsService.sendAntsFromXtoC(avaxAssetID);
+    return this.avalancheService.sendAntsFromXtoC(avaxAssetID);
   }
 
   //TODO: test and validate
   @Get('/exportANT')
   async exportANT(@Body() avaxAssetID: string) {
-    return this.utilsService.receiveAntsFromXtoC(avaxAssetID);
+    return this.avalancheService.receiveAntsFromXtoC(avaxAssetID);
   }
 
   //TODO: test and validate
   @Get('/importAssetToC')
   async importAssetToC() {
-    return this.utilsService.importAssetToC();
+    return this.avalancheService.importAssetToC();
   }
 
   //TODO: test and validate
   @Get('/exportAssetFromX')
   async exportAssetFromX(@Body() amount: string) {
-    return this.utilsService.exportAssetFromX(Number(amount));
+    return this.avalancheService.exportAssetFromX(Number(amount));
   }
 
   //TODO: test and validate
   @Get('/canPayFee')
   async canPayFee(@Body() account: {xChainAddress:string, assetID:string}) {
-    return this.utilsService.canPayFee(account.xChainAddress, account.assetID);
+    return this.avalancheService.canPayFee(account.xChainAddress, account.assetID);
   }
 
   //TODO: test and validate
   @Get('/getChainHexBalance')
   async getChainHexBalance(@Body() chexAddress : string) {
-    return this.utilsService.getChainHexBalance(chexAddress);
+    return this.avalancheService.getChainHexBalance(chexAddress);
   }
+
+  //TODO: test and validate
+  // @Get('/createAvaxProfile')
+  // async getChainHexBalance(@Body() chexAddress : string) {
+  //   return this.avalancheService.getChainHexBalance(chexAddress);
+  // }
 
   @Post('/createAsset')
   async createAsset(@Body() asset: MintAssetUtilDto) {
-    const txid = await this.utilsService.createAsset(asset);
+    const txid = await this.avalancheService.createAsset(asset);
     const transactions: Transactions = {
       x_chain: txid,
       c_chain: null,
@@ -79,27 +85,27 @@ export class UtilsController {
     };
     //TODO:cleanup the Token interface
     const token: Partial<Token> = {...asset, transactions};
-    const response = await this.utilsService.createAssetTransaction(token);
+    const response = await this.avalancheService.createAssetTransaction(token);
     return { txid: txid, status: 200 };
   }
 
   @Get('/getAvaxAdmins')
   async getAvaxAdmins() {
-    return this.utilsService.getAvaxAdmins();
+    return this.avalancheService.getAvaxAdmins();
   }
 
   @Get('/validateMnemonic')
   async validateMnemonic() {
-    return this.utilsService.validateMnemonic();
+    return this.avalancheService.validateMnemonic();
   }
 
   @Get('/listAddresses')
   async listAddresses() {
-    return this.utilsService.listAddresses();
+    return this.avalancheService.listAddresses();
   }
 
   @Get('/createAddress')
   createAddress() {
-    return this.utilsService.createAddress();
+    return this.avalancheService.createAddress();
   }
 }
