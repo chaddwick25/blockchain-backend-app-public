@@ -45,7 +45,7 @@ export interface Transactions {
 }
 import { HttpException, HttpStatus } from '@nestjs/common';
 import * as argon2 from 'argon2';
-import  apiConfig from '../config/utils';
+import  apiConfig from '../../config/utils';
 import { ConfigService } from '@nestjs/config';
 import { createCipheriv, randomBytes, scrypt, createDecipheriv} from 'crypto';
 import { promisify } from 'util';
