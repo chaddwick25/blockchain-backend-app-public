@@ -13,8 +13,6 @@ import { LoginUserDto } from 'src/users/dtos/user-login.dto';
 import { UserResponse } from '../users/dtos/user-response.dto';
 import { Metamask } from '@entities/metamask.entities';
 import { recoverPersonalSignature } from '@metamask/eth-sig-util';
-import { createCipheriv, randomBytes, scrypt, createDecipheriv} from 'crypto';
-import { promisify } from 'util';
 import { ConfigService } from '@nestjs/config';
 import { validate } from 'class-validator'
 
@@ -132,55 +130,5 @@ export class AuthService {
 
   private toHex(stringToConvert: string) {
     return Buffer.from(stringToConvert, 'utf8').toString('hex');
-  }
-
-  private async encrypt(textToEncrypt: string) {
-    const iv = randomBytes(16);
-    const key = (await promisify(scrypt)(
-      this.configService.get<string>('ENCRYPTION_PASSWORD'),
-      this.configService.get<string>('ENCRYPTION_SALT'),
-      32,
-    )) as Buffer;
-    try {
-      const cipher = createCipheriv('aes-256-ctr', key, iv);    
-      const encryptedText = Buffer.concat([
-        cipher.update(textToEncrypt),
-        cipher.final(),
-      ]);
-      // convert Buffer to hex for database storage    
-      return {
-        encryptedText: encryptedText.toString('hex'),
-        iv: iv.toString('hex'),
-      };
-    } catch (err) {
-      throw new HttpException({
-        message: 'Authentication failed',
-        errors: err,
-      }, HttpStatus.INTERNAL_SERVER_ERROR);
-    } 
-}
-
-private async decrypt(encryptedText: string, iv: string) {
-    const key = (await promisify(scrypt)(
-      this.configService.get<string>('ENCRYPTION_PASSWORD'),
-      this.configService.get<string>('ENCRYPTION_SALT'),
-      32,
-    )) as Buffer;
-    // convert the encryptedText and iv back to Buffer
-    const ivBuffer = Buffer.from(iv, 'hex');
-    const encryptedTextBuffer = Buffer.from(encryptedText, 'hex');  
-    try {
-      const decipher = createDecipheriv('aes-256-ctr', key, ivBuffer);
-      const decryptedText = Buffer.concat([
-        decipher.update(encryptedTextBuffer),
-        decipher.final(),
-      ]);
-      return decryptedText.toString();
-    } catch (err) {
-      throw new HttpException({
-        message: 'Authentication failed',
-        errors: err,
-      }, HttpStatus.INTERNAL_SERVER_ERROR);
-    } 
   }
 }
