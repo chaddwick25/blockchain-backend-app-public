@@ -31,11 +31,11 @@ import {
 } from 'avalanche/dist/apis/evm';
 import { Defaults, UnixNow, costImportTx } from 'avalanche/dist/utils';
 import { PlatformVMAPI } from "avalanche/dist/apis/platformvm"
-import axios from 'axios';
 const Web3 = require('web3');
 import { getChainBalanceDto } from './dtos/request/get-chain-balance.dto';
 import { EntityRepository } from '@mikro-orm/core';
 import { Token } from '@entities/token.entities';
+import { Metamask } from '@entities/metamask.entities';
 import { InjectRepository } from '@mikro-orm/nestjs';
 import { validate } from 'class-validator';
 export interface Transactions {
@@ -45,19 +45,22 @@ export interface Transactions {
 }
 import { HttpException, HttpStatus } from '@nestjs/common';
 import * as argon2 from 'argon2';
-import  apiConfig from '../../config/avalanche';
+import apiConfig from '../../config/avalanche';
 import { ConfigService } from '@nestjs/config';
-import { createCipheriv, randomBytes, scrypt, createDecipheriv} from 'crypto';
+import { createCipheriv, randomBytes, scrypt, createDecipheriv } from 'crypto';
 import { promisify } from 'util';
 
 @Injectable()
 export class AvalancheService implements OnModuleInit {
   constructor(
     @InjectRepository(Token)
-    private tokenRepository: EntityRepository<Token>,
-    
+    private readonly tokenRepository: EntityRepository<Token>,
+
+    @InjectRepository(Metamask)
+    private readonly metamaskRepo: EntityRepository<Metamask>,
+
     private configService: ConfigService
-  ) {}
+  ) { }
 
   // chain config variables
   private apiConfig = apiConfig().apiConfig
@@ -92,8 +95,8 @@ export class AvalancheService implements OnModuleInit {
     this.cKeychain.importKey(privKey);
     this.cAddressStrings = this.cKeychain.getAddressStrings();
     this.xAddressStrings = this.xKeychain.getAddressStrings();
-    this.avaxAssetID = Defaults.network[this.apiConfig.networkID].X.avaxAssetID 
-    this.cHexAddress = await this.cchain.importKey(this.apiConfig.avax_username, this.apiConfig.avax_user_password, privKey)    
+    this.avaxAssetID = Defaults.network[this.apiConfig.networkID].X.avaxAssetID
+    this.cHexAddress = await this.cchain.importKey(this.apiConfig.avax_username, this.apiConfig.avax_user_password, privKey)
   }
 
   async getAvaxAdmins() {
@@ -103,23 +106,84 @@ export class AvalancheService implements OnModuleInit {
   }
 
   //TODO: implement and test
-  // private async createAvaxProfile(id:string){
-  //   const profile = await this.metamaskRepo.findOne({id});
-  //   if (!profile.avaxUserName) {
-  //     const { address } = profile
-  //     const encrypted: { encryptedText: string, iv: string} = await this.encrypt(address)
-  //     // TODO: Refactor the solution below this is not SAFE 
-  //     // there is no "Update" function available on Avax's endpoint
-  //     // add another layer of encryption
-  //     // https://docs.avax.network/apis/avalanchego/apis/keystore#keystorecreateuser
-  //     const isUserCreated = await this.avaxService.createAvaxUser(encrypted.encryptedText, encrypted.encryptedText)
-  //     profile.iv = encrypted.iv
-  //     profile.avaxUserName = encrypted.encryptedText
-  //     await this.metamaskRepo.persistAndFlush(profile);
-  //   }
-  // }
-  
-  async getChainBalance(chain: getChainBalanceDto){
+  private async createAvaxProfile(id: string) {
+    const profile = await this.metamaskRepo.findOne({ id });
+    if (!profile.avaxUserName) {
+      const { address } = profile
+      const password = Math.floor(Math.random() * 1000000).toString();
+      const encryptedProfile: { encryptedPassword: string, iv: string } = await this.encrypt(password)
+      await this.verifyEncryption(encryptedProfile.encryptedPassword, password, encryptedProfile.iv)
+      await this.avalancheAPI.NodeKeys().createUser(address, password)
+      profile.iv = encryptedProfile.iv
+      profile.avaxUserName = encryptedProfile.encryptedPassword
+      await this.metamaskRepo.persistAndFlush(profile);
+    }
+  }
+
+  private async verifyEncryption(encryptedPassword: string, password: string, iv: string) {
+    const decryptedPassword = await this.decrypt(encryptedPassword, iv)
+    if (decryptedPassword !== password) {
+      throw new HttpException({
+        message: 'Authentication failed',
+        errors: 'Password verification failed',
+      }, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+    return true;
+  }
+
+  private async encrypt(textToEncrypt: string) {
+    const iv = randomBytes(16);
+    const key = (await promisify(scrypt)(
+      this.configService.get<string>('ENCRYPTION_PASSWORD'),
+      this.configService.get<string>('ENCRYPTION_SALT'),
+      32,
+    )) as Buffer;
+    try {
+      const cipher = createCipheriv('aes-256-ctr', key, iv);
+      const encryptedText = Buffer.concat([
+        cipher.update(textToEncrypt),
+        cipher.final(),
+      ]);
+      // convert Buffer to hex for database storage    
+      return {
+        encryptedPassword: encryptedText.toString('hex'),
+        iv: iv.toString('hex'),
+      };
+    } catch (err) {
+      throw new HttpException({
+        message: 'Authentication failed',
+        errors: err,
+      }, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  private async decrypt(encryptedText: string, iv: string) {
+    const key = (await promisify(scrypt)(
+      this.configService.get<string>('ENCRYPTION_PASSWORD'),
+      this.configService.get<string>('ENCRYPTION_SALT'),
+      32,
+    )) as Buffer;
+    // convert the encryptedText and iv back to Buffer
+    const ivBuffer = Buffer.from(iv, 'hex');
+    const encryptedTextBuffer = Buffer.from(encryptedText, 'hex');
+    try {
+      const decipher = createDecipheriv('aes-256-ctr', key, ivBuffer);
+      const decryptedText = Buffer.concat([
+        decipher.update(encryptedTextBuffer),
+        decipher.final(),
+      ]);
+      return decryptedText.toString();
+    } catch (err) {
+      throw new HttpException({
+        message: 'Authentication failed',
+        errors: err,
+      }, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+
+
+  async getChainBalance(chain: getChainBalanceDto) {
     switch (chain.chainType) {
       case 'X':
         const getXChainResponse: any = await this.xchain.getBalance(
@@ -160,7 +224,7 @@ export class AvalancheService implements OnModuleInit {
   async getXChainAssets(address) {
     const balances: object[] = await this.xchain.getAllBalances(address);
     let allAssets = [];
-        
+
     for await (let balance of balances) {
       let description = await this.xchain.getAssetDescription(
         String(balance['asset']),
@@ -196,43 +260,43 @@ export class AvalancheService implements OnModuleInit {
       networkID,
     };
   }
-  
-  // Build transactions to export AVAX from the X-Chain to the C-Chain 
-  async exportAssetFromX(amount:number = 100) {
-      const locktime: BN = new BN(0);
-      const asOf: BN = UnixNow();
-      const memo: Buffer = Buffer.from(
-        'AVM utility method buildExportTx to export AVAX to the C-Chain from the X-Chain',
-      );
-      const fee: BN = this.xchain.getDefaultTxFee();
-      const avmUTXOResponse: GetUTXOsResponse = await this.xchain.getUTXOs(
-        this.xAddressStrings,
-      );
-  
-      const utxoSet: UTXOSet = avmUTXOResponse.utxos;
-      const getBalanceResponse: GetBalanceResponse = await this.xchain.getBalance(
-        this.xAddressStrings[0],
-        this.avaxAssetID,
-      );
 
-      amount = new BN(amount);
-      // No fee is paid because assets are simply 'indexed/tagged' for export
-      const unsignedTx: UnsignedTx = await this.xchain.buildExportTx(
-        utxoSet,
-        amount,
-        this.cChainBlockchainID,
-        this.cAddressStrings,
-        this.xAddressStrings,
-        this.xAddressStrings,
-        memo,
-        asOf,
-        locktime,
-      );
-  
-      const tx: Tx = unsignedTx.sign(this.xKeychain);
-      const txid: string = await this.xchain.issueTx(tx);
-      console.log(`Success! TXID: ${txid}`);
-    }
+  // Build transactions to export AVAX from the X-Chain to the C-Chain 
+  async exportAssetFromX(amount: number = 100) {
+    const locktime: BN = new BN(0);
+    const asOf: BN = UnixNow();
+    const memo: Buffer = Buffer.from(
+      'AVM utility method buildExportTx to export AVAX to the C-Chain from the X-Chain',
+    );
+    const fee: BN = this.xchain.getDefaultTxFee();
+    const avmUTXOResponse: GetUTXOsResponse = await this.xchain.getUTXOs(
+      this.xAddressStrings,
+    );
+
+    const utxoSet: UTXOSet = avmUTXOResponse.utxos;
+    const getBalanceResponse: GetBalanceResponse = await this.xchain.getBalance(
+      this.xAddressStrings[0],
+      this.avaxAssetID,
+    );
+
+    amount = new BN(amount);
+    // No fee is paid because assets are simply 'indexed/tagged' for export
+    const unsignedTx: UnsignedTx = await this.xchain.buildExportTx(
+      utxoSet,
+      amount,
+      this.cChainBlockchainID,
+      this.cAddressStrings,
+      this.xAddressStrings,
+      this.xAddressStrings,
+      memo,
+      asOf,
+      locktime,
+    );
+
+    const tx: Tx = unsignedTx.sign(this.xKeychain);
+    const txid: string = await this.xchain.issueTx(tx);
+    console.log(`Success! TXID: ${txid}`);
+  }
 
   // Import Avax to C-Chain from X-Chain
   async importAssetToC() {
@@ -253,7 +317,7 @@ export class AvalancheService implements OnModuleInit {
       this.cAddressStrings,
       fee,
     );
-    
+
     const importCost: number = costImportTx(unsignedTx);
     fee = baseFee.mul(new BN(importCost));
     // amount is not given because all Transactions(utxoset) are imported
@@ -362,8 +426,8 @@ export class AvalancheService implements OnModuleInit {
     return await this.xchain.issueTx(tx);
   }
 
-  async createAsset(asset){
-    if (this.validateMnemonic()){
+  async createAsset(asset) {
+    if (this.validateMnemonic()) {
       const xAddresses: Buffer[] = this.xchain.keyChain().getAddresses();
       const outputs: SECPMintOutput[] = [];
       const threshold = 1;
@@ -415,21 +479,21 @@ export class AvalancheService implements OnModuleInit {
       );
     }
   }
-  
+
   // TODO:finish later 
   //adds a transaction_id to the relative transaction(x_chain, c_chain and wallet)
-  async updateAssetTransaction(dto: Partial<Token>){
+  async updateAssetTransaction(dto: Partial<Token>) {
     // const user = await this.usersRepository.findOneOrFail({ id });
     // wrap(user).assign(dto);
     // await this.usersRepository.persistAndFlush(user);
     // return this.buildUserRO(user);
   }
 
-  async getUserTokens(address: string){
-    return  await this.tokenRepository.find({ address: address});
+  async getUserTokens(address: string) {
+    return await this.tokenRepository.find({ address: address });
   }
 
-  async createAssetTransaction(tokenDto: Partial<Token>){
+  async createAssetTransaction(tokenDto: Partial<Token>) {
     const createdToken = this.tokenRepository.create(tokenDto);
     const errors = await validate(createdToken);
     if (errors.length > 0) {
@@ -477,68 +541,19 @@ export class AvalancheService implements OnModuleInit {
     return addresses;
   }
 
-  async createAvaxUser(username:string, password:string){
-    const hashedpassword = await argon2.hash(password)
+  async createAvaxUser(username: string, password: string) {
     return await this.avalancheAPI
       .NodeKeys()
-      .createUser(username, hashedpassword);
+      .createUser(username, await argon2.hash(password));
   }
-  
+
   //TODO: refactor to recieve variables
-  async createAddress(){
+  async createAddress() {
     const address: string = await this.xchain.createAddress(
       this.apiConfig.avax_username,
       this.apiConfig.avax_user_password,
     );
     return address;
   }
-private async encrypt(textToEncrypt: string) {
-    const iv = randomBytes(16);
-    const key = (await promisify(scrypt)(
-      this.configService.get<string>('ENCRYPTION_PASSWORD'),
-      this.configService.get<string>('ENCRYPTION_SALT'),
-      32,
-    )) as Buffer;
-    try {
-      const cipher = createCipheriv('aes-256-ctr', key, iv);    
-      const encryptedText = Buffer.concat([
-        cipher.update(textToEncrypt),
-        cipher.final(),
-      ]);
-      // convert Buffer to hex for database storage    
-      return {
-        encryptedText: encryptedText.toString('hex'),
-        iv: iv.toString('hex'),
-      };
-    } catch (err) {
-      throw new HttpException({
-        message: 'Authentication failed',
-        errors: err,
-      }, HttpStatus.INTERNAL_SERVER_ERROR);
-    } 
-}
 
-private async decrypt(encryptedText: string, iv: string) {
-    const key = (await promisify(scrypt)(
-      this.configService.get<string>('ENCRYPTION_PASSWORD'),
-      this.configService.get<string>('ENCRYPTION_SALT'),
-      32,
-    )) as Buffer;
-    // convert the encryptedText and iv back to Buffer
-    const ivBuffer = Buffer.from(iv, 'hex');
-    const encryptedTextBuffer = Buffer.from(encryptedText, 'hex');  
-    try {
-      const decipher = createDecipheriv('aes-256-ctr', key, ivBuffer);
-      const decryptedText = Buffer.concat([
-        decipher.update(encryptedTextBuffer),
-        decipher.final(),
-      ]);
-      return decryptedText.toString();
-    } catch (err) {
-      throw new HttpException({
-        message: 'Authentication failed',
-        errors: err,
-      }, HttpStatus.INTERNAL_SERVER_ERROR);
-    } 
-  }
 }

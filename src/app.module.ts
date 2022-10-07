@@ -7,6 +7,7 @@ import { AuthModule } from './auth/auth.module';
 import { UsersController } from './users/users.controller';
 import { UsersModule } from './users/users.module';
 import { AvalancheModule } from './avalanche/avalanche.module';
+import { AvalancheController } from './avalanche/avalanche.controller';
 
 @Module({
   imports: [
@@ -26,7 +27,7 @@ import { AvalancheModule } from './avalanche/avalanche.module';
     UsersModule,
     AuthModule,
   ],
-  controllers: [UsersController, AuthController],
+  controllers: [UsersController, AuthController, AvalancheController],
   providers: [AppService],
 })
 export class AppModule {}
