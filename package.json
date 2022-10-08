@@ -6,6 +6,12 @@
   "private": true,
   "license": "UNLICENSED",
   "proxy": "http://localhost:5000",
+  "mikro-orm": {
+    "useTsNode": true,
+    "configPaths": [
+     "./src/mikro-orm.config.ts"
+    ]
+  },
   "scripts": {
     "prebuild": "rimraf dist",
     "build": "nest build",
