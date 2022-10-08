@@ -45,7 +45,6 @@ export interface Transactions {
 }
 import { HttpException, HttpStatus } from '@nestjs/common';
 import * as argon2 from 'argon2';
-import apiConfig from '../../config/avalanche';
 import { ConfigService } from '@nestjs/config';
 import { createCipheriv, randomBytes, scrypt, createDecipheriv } from 'crypto';
 import { promisify } from 'util';
@@ -63,27 +62,25 @@ export class AvalancheService implements OnModuleInit {
   ) { }
 
   // chain config variables
-  private apiConfig = apiConfig().apiConfig
   private avalancheAPI: Avalanche;
   private xchain: AVMAPI;
   private cchain: EVMAPI;
   private pchain: PlatformVMAPI;
   private cAddressStrings: string[];
   private xAddressStrings: string[];
-  private xChainBlockchainId: string = Defaults.network[this.apiConfig.networkID].X.blockchainID;
-  private cChainBlockchainID: string = Defaults.network[this.apiConfig.networkID].C.blockchainID;
+  private xChainBlockchainID: string;
+  private cChainBlockchainID: string;
   private xKeychain: KeyChain;
   private cKeychain: EVMKeyChain;
   private avaxAssetID: string;
   private cHexAddress: string;
 
-  // acts as a "constructor" for a provider/class member variables at the top of the stack
   async onModuleInit(): Promise<void> {
     this.avalancheAPI = await new Avalanche(
-      this.apiConfig.host,
-      this.apiConfig.port,
-      this.apiConfig.protocol,
-      this.apiConfig.networkID,
+      this.configService.get<string>('HOST'),
+      this.configService.get<number>('AVAX_API_PORT'),
+      this.configService.get<string>('PROTOCOL'),
+      this.configService.get<number>('NETWORK_ID'),
     );
     this.xchain = this.avalancheAPI.XChain();
     this.cchain = this.avalancheAPI.CChain();
@@ -95,8 +92,14 @@ export class AvalancheService implements OnModuleInit {
     this.cKeychain.importKey(privKey);
     this.cAddressStrings = this.cKeychain.getAddressStrings();
     this.xAddressStrings = this.xKeychain.getAddressStrings();
-    this.avaxAssetID = Defaults.network[this.apiConfig.networkID].X.avaxAssetID
-    this.cHexAddress = await this.cchain.importKey(this.apiConfig.avax_username, this.apiConfig.avax_user_password, privKey)
+    // passing the NETWORK_ID via configService to Defaults.network throws the TypeError below
+    // TypeError: Cannot read properties of undefined (reading 'X')
+    // const NETWORK_ID has a short lifecyle is within the onModuleInit and doesnot throw a error
+    const NETWORK_ID = this.configService.get<number>('NETWORK_ID');
+    this.avaxAssetID = Defaults.network[NETWORK_ID].X.avaxAssetID;
+    this.xChainBlockchainID = Defaults.network[NETWORK_ID].X.blockchainID;
+    this.cChainBlockchainID = Defaults.network[NETWORK_ID].C.blockchainID;
+    this.cHexAddress = this.configService.get<string>('HEX_ADDRESS');
   }
 
   async getAvaxAdmins() {
@@ -214,7 +217,7 @@ export class AvalancheService implements OnModuleInit {
     const path: string = '/ext/bc/C/rpc';
     const web3: any = new Web3(
       new Web3.providers.HttpProvider(
-        `${this.apiConfig.protocol}://${this.apiConfig.host}:${this.apiConfig.port}${path}`,
+        `${this.configService.get<string>('PROTOCOL')}://${this.configService.get<string>('HOST')}:${this.configService.get<string>('AVAX_API_PORT')}${path}`,
       ),
     );
     let balance: BN = await web3.eth.getBalance(cHexAddress);
@@ -262,7 +265,7 @@ export class AvalancheService implements OnModuleInit {
   }
 
   // Build transactions to export AVAX from the X-Chain to the C-Chain 
-  async exportAssetFromX(amount: number = 100) {
+  async exportAssetFromX(quantity: number = 100) {
     const locktime: BN = new BN(0);
     const asOf: BN = UnixNow();
     const memo: Buffer = Buffer.from(
@@ -279,7 +282,7 @@ export class AvalancheService implements OnModuleInit {
       this.avaxAssetID,
     );
 
-    amount = new BN(amount);
+    const amount = new BN(quantity);
     // No fee is paid because assets are simply 'indexed/tagged' for export
     const unsignedTx: UnsignedTx = await this.xchain.buildExportTx(
       utxoSet,
@@ -305,7 +308,7 @@ export class AvalancheService implements OnModuleInit {
     let fee: BN = baseFee;
     const evmUTXOResponse: any = await this.cchain.getUTXOs(
       this.cAddressStrings,
-      this.xChainBlockchainId,
+      this.xChainBlockchainID,
     );
     const utxoSet: EVMUTXOSet = evmUTXOResponse.utxos;
     // Fee is paid to transfer the assets in the UTXOset
@@ -313,7 +316,7 @@ export class AvalancheService implements OnModuleInit {
       utxoSet,
       this.cHexAddress,
       this.cAddressStrings,
-      this.xChainBlockchainId,
+      this.xChainBlockchainID,
       this.cAddressStrings,
       fee,
     );
@@ -325,7 +328,7 @@ export class AvalancheService implements OnModuleInit {
       utxoSet,
       this.cHexAddress,
       this.cAddressStrings,
-      this.xChainBlockchainId,
+      this.xChainBlockchainID,
       this.cAddressStrings,
       fee,
     );
@@ -367,14 +370,14 @@ export class AvalancheService implements OnModuleInit {
 
     const evmUTXOResponse: any = await this.cchain.getUTXOs(
       this.cAddressStrings,
-      this.xChainBlockchainId,
+      this.xChainBlockchainID,
     );
     const utxoSet: EVMUTXOSet = evmUTXOResponse.utxos;
     let unsignedTx: EVMUnsignedTx = await this.cchain.buildImportTx(
       utxoSet,
       cHexAddress,
       this.cAddressStrings,
-      this.xChainBlockchainId,
+      this.xChainBlockchainID,
       this.cAddressStrings,
       fee,
     );
@@ -385,7 +388,7 @@ export class AvalancheService implements OnModuleInit {
       utxoSet,
       cHexAddress,
       this.cAddressStrings,
-      this.xChainBlockchainId,
+      this.xChainBlockchainID,
       this.cAddressStrings,
       fee,
     );
@@ -535,8 +538,8 @@ export class AvalancheService implements OnModuleInit {
 
   async listAddresses(): Promise<string[]> {
     const addresses: string[] = await this.xchain.listAddresses(
-      this.apiConfig.avax_username,
-      this.apiConfig.avax_user_password,
+      this.configService.get<string>('AVAX_USERNAME'),
+      this.configService.get<string>('AVAX_USER_PASSWORD'),
     );
     return addresses;
   }
@@ -550,8 +553,8 @@ export class AvalancheService implements OnModuleInit {
   //TODO: refactor to recieve variables
   async createAddress() {
     const address: string = await this.xchain.createAddress(
-      this.apiConfig.avax_username,
-      this.apiConfig.avax_user_password,
+      this.configService.get<string>('AVAX_USERNAME'),
+      this.configService.get<string>('AVAX_USER_PASSWORD'),
     );
     return address;
   }
