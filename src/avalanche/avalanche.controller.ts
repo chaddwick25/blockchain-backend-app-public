@@ -1,9 +1,9 @@
-import { Controller, Get, Post, Body } from '@nestjs/common';
+import { Controller, Get, Post, Body, Request, UseGuards } from '@nestjs/common';
 import { AvalancheService } from './avalanche.service';
 import { MintAssetUtilDto } from './dtos/request/mint-asset-util.dto';
-import { CreateAvaxUser } from './dtos/request/create-avax-user.dto';
 import { getChainBalanceDto } from './dtos/request/get-chain-balance.dto';
 import { Transactions, Token } from '@entities/token.entities';
+import { JwtMetaMaskGuard } from '@guards/jwt-meta.guard';
 
 @Controller('Avalanche')
 export class AvalancheController {
@@ -15,9 +15,10 @@ export class AvalancheController {
   }
 
   // TODO: test and validate
+  @UseGuards(JwtMetaMaskGuard)
   @Get('/getXChainAssets')
-  async getXChainAssets(address: string = 'X-fuji1acdjwme52sraxm2ssmlcc8zty37vys7qthd7g5') {
-    return await this.avalancheService.getXChainAssets(address);
+  async getXChainAssets(@Request() req) {
+    return await this.avalancheService.getXChainAssets(req.user.xchainAddress);
   }
 
   @Post('/getUserTokens')
@@ -68,12 +69,12 @@ export class AvalancheController {
   async getChainHexBalance(@Body() chexAddress : string) {
     return this.avalancheService.getChainHexBalance(chexAddress);
   }
-
-  //TODO: test and validate
-  // @Get('/createAvaxProfile')
-  // async getChainHexBalance(@Body() chexAddress : string) {
-  //   return this.avalancheService.getChainHexBalance(chexAddress);
-  // }
+  // TODO: test and validate
+  @UseGuards(JwtMetaMaskGuard)
+  @Get('/createavaxprofile')
+  async createavaxprofile(@Request() req) {
+    return this.avalancheService.createAvaxProfile(req.user.id);  
+  }
 
   @Post('/createAsset')
   async createAsset(@Body() asset: MintAssetUtilDto) {

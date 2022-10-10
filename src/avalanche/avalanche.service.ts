@@ -38,6 +38,7 @@ import { Token } from '@entities/token.entities';
 import { Metamask } from '@entities/metamask.entities';
 import { InjectRepository } from '@mikro-orm/nestjs';
 import { validate } from 'class-validator';
+//TODO:clean this up
 export interface Transactions {
   x_chain: string | null;
   c_chain: string | null;
@@ -48,10 +49,11 @@ import * as argon2 from 'argon2';
 import { ConfigService } from '@nestjs/config';
 import { createCipheriv, randomBytes, scrypt, createDecipheriv } from 'crypto';
 import { promisify } from 'util';
+import configuration from './config/configuration';
 
 @Injectable()
 export class AvalancheService implements OnModuleInit {
-  constructor(
+   constructor(
     @InjectRepository(Token)
     private readonly tokenRepository: EntityRepository<Token>,
 
@@ -59,7 +61,7 @@ export class AvalancheService implements OnModuleInit {
     private readonly metamaskRepo: EntityRepository<Metamask>,
 
     private configService: ConfigService
-  ) { }
+  ) {}
 
   // chain config variables
   private avalancheAPI: Avalanche;
@@ -76,11 +78,18 @@ export class AvalancheService implements OnModuleInit {
   private cHexAddress: string;
 
   async onModuleInit(): Promise<void> {
+    // Using the config Service within the onModuleInit creates weird errors 
+    // Importing the avalanche api config works better within the Nestjs framework
+    const config = await configuration();
+    const ip = config.avalanche.ip
+    const port = config.avalanche.port
+    const protocol = config.avalanche.protocol
+    const networkID = config.avalanche.networkID
     this.avalancheAPI = await new Avalanche(
-      this.configService.get<string>('HOST'),
-      this.configService.get<number>('AVAX_API_PORT'),
-      this.configService.get<string>('PROTOCOL'),
-      this.configService.get<number>('NETWORK_ID'),
+        ip, 
+        port,
+        protocol,
+        networkID
     );
     this.xchain = this.avalancheAPI.XChain();
     this.cchain = this.avalancheAPI.CChain();
@@ -92,14 +101,10 @@ export class AvalancheService implements OnModuleInit {
     this.cKeychain.importKey(privKey);
     this.cAddressStrings = this.cKeychain.getAddressStrings();
     this.xAddressStrings = this.xKeychain.getAddressStrings();
-    // passing the NETWORK_ID via configService to Defaults.network throws the TypeError below
-    // TypeError: Cannot read properties of undefined (reading 'X')
-    // const NETWORK_ID has a short lifecyle is within the onModuleInit and doesnot throw a error
-    const NETWORK_ID = this.configService.get<number>('NETWORK_ID');
-    this.avaxAssetID = Defaults.network[NETWORK_ID].X.avaxAssetID;
-    this.xChainBlockchainID = Defaults.network[NETWORK_ID].X.blockchainID;
-    this.cChainBlockchainID = Defaults.network[NETWORK_ID].C.blockchainID;
-    this.cHexAddress = this.configService.get<string>('HEX_ADDRESS');
+    this.avaxAssetID = Defaults.network[config.avalanche.networkID].X.avaxAssetID;
+    this.xChainBlockchainID = Defaults.network[config.avalanche.networkID].X.blockchainID;
+    this.cChainBlockchainID = Defaults.network[config.avalanche.networkID].C.blockchainID;
+    this.cHexAddress = config.avalanche.cHexAddress
   }
 
   async getAvaxAdmins() {
@@ -109,17 +114,36 @@ export class AvalancheService implements OnModuleInit {
   }
 
   //TODO: implement and test
-  private async createAvaxProfile(id: string) {
+  async createAvaxProfile(id: string) {
     const profile = await this.metamaskRepo.findOne({ id });
-    if (!profile.avaxUserName) {
-      const { address } = profile
-      const password = Math.floor(Math.random() * 1000000).toString();
-      const encryptedProfile: { encryptedPassword: string, iv: string } = await this.encrypt(password)
-      await this.verifyEncryption(encryptedProfile.encryptedPassword, password, encryptedProfile.iv)
-      await this.avalancheAPI.NodeKeys().createUser(address, password)
-      profile.iv = encryptedProfile.iv
-      profile.avaxUserName = encryptedProfile.encryptedPassword
-      await this.metamaskRepo.persistAndFlush(profile);
+    if(profile?.encryptedPassword == null) {
+      try {
+        // TODO: change to constant after creating seperate ENV files 
+        let { address } = profile
+        //TODO:implement a more robust password generator
+        const password = Math.floor(Math.random() * 1000000).toString();
+        const encryptedProfile: { encryptedPassword: string, iv: string } = await this.encrypt(password)
+        await this.verifyEncryption(encryptedProfile.encryptedPassword, password, encryptedProfile.iv)
+        // TODO: remove after creating seperate ENV files         
+        if(this.configService.get<boolean>('IS_STAGING')){
+          address = address + password
+        }
+        const hashedPassword = await argon2.hash(password);
+        await this.avalancheAPI.NodeKeys().createUser(address, hashedPassword)
+        //TODO: rethink creating a address after creating user login
+        await this.xchain.createAddress(address, hashedPassword)
+        const xchainAddress = await this.xchain.listAddresses(address, hashedPassword)
+        profile.encryptedPassword = encryptedProfile.encryptedPassword;
+        profile.iv = encryptedProfile.iv
+        profile.xchainAddress = xchainAddress[0]
+        await this.metamaskRepo.persistAndFlush(profile);
+      } catch (error) {
+        console.log(error);
+        throw new HttpException({
+          message: 'Avax Profile creation failed',
+          errors: error,
+        }, HttpStatus.INTERNAL_SERVER_ERROR);
+      } 
     }
   }
 
@@ -183,8 +207,6 @@ export class AvalancheService implements OnModuleInit {
       }, HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
-
-
 
   async getChainBalance(chain: getChainBalanceDto) {
     switch (chain.chainType) {
