@@ -4,7 +4,6 @@ import { AvalancheController } from './avalanche.controller';
 import { Token } from '@entities/token.entities';
 import { Metamask } from '@entities/metamask.entities';
 import { MikroOrmModule } from '@mikro-orm/nestjs';
-import { ConfigService } from '@nestjs/config';
 
 @Module({
   imports: [
@@ -12,7 +11,7 @@ import { ConfigService } from '@nestjs/config';
     MikroOrmModule.forFeature([Metamask]),
   ],
   controllers: [AvalancheController],
-  providers: [AvalancheService, ConfigService],
+  providers: [AvalancheService],
   exports: [AvalancheService]
 })
 export class AvalancheModule {}

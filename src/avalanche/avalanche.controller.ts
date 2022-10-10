@@ -90,11 +90,6 @@ export class AvalancheController {
     return { txid: txid, status: 200 };
   }
 
-  @Get('/getAvaxAdmins')
-  async getAvaxAdmins() {
-    return this.avalancheService.getAvaxAdmins();
-  }
-
   @Get('/validateMnemonic')
   async validateMnemonic() {
     return this.avalancheService.validateMnemonic();

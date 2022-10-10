@@ -107,12 +107,6 @@ export class AvalancheService implements OnModuleInit {
     this.cHexAddress = config.avalanche.cHexAddress
   }
 
-  async getAvaxAdmins() {
-    const keystore: KeystoreAPI = this.avalancheAPI.NodeKeys();
-    const users: string[] = await keystore.listUsers();
-    return users;
-  }
-
   //TODO: implement and test
   async createAvaxProfile(id: string) {
     const profile = await this.metamaskRepo.findOne({ id });
