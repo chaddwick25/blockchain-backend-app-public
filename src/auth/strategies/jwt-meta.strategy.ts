@@ -15,6 +15,6 @@ export class JwtMetaMaskStrategy extends PassportStrategy(Strategy, 'jwt_meta') 
   }
 
   async validate(payload: any) {
-    return { id: payload.sub };
+    return { id: payload.id, xchainAddress: payload.xchainAddress };
   }
 }

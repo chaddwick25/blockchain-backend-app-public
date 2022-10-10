@@ -14,5 +14,8 @@ export class Metamask extends CustomBaseEntity<Metamask> {
   iv?: string;
 
   @Property({ nullable: true })
-  avaxUserName?: string;
+  encryptedPassword?: string;
+
+  @Property({ nullable: true })
+  xchainAddress?: string;
 }
