@@ -1,7 +1,6 @@
 import { MikroOrmModule } from '@mikro-orm/nestjs';
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { AppService } from './app.service';
 import { AuthController } from './auth/auth.controller';
 import { AuthModule } from './auth/auth.module';
 import { UsersController } from './users/users.controller';
@@ -28,6 +27,5 @@ import { AvalancheController } from './avalanche/avalanche.controller';
     AuthModule,
   ],
   controllers: [UsersController, AuthController, AvalancheController],
-  providers: [AppService],
 })
 export class AppModule {}
