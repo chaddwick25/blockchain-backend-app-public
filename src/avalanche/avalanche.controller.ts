@@ -9,6 +9,7 @@ import { JwtMetaMaskGuard } from '@guards/jwt-meta.guard';
 export class AvalancheController {
   constructor(private readonly avalancheService: AvalancheService) {}
 
+  // TODO: Add role decorator: admin route 
   @Get('/blockinfo')
   async blockinfo() {
     return this.avalancheService.getBlockchainData();
@@ -21,6 +22,8 @@ export class AvalancheController {
     return await this.avalancheService.getXChainAssets(req.user.xchainAddress);
   }
 
+  // TODO: test and validate
+  @UseGuards(JwtMetaMaskGuard)
   @Post('/getUserTokens')
   async getUserTokens(
       address: string,
@@ -28,43 +31,44 @@ export class AvalancheController {
     return await this.avalancheService.getUserTokens(address);
   }
 
+
   @Post('/getChainBalance')
   async getChainBalance(@Body() chainData: getChainBalanceDto) {
     return await this.avalancheService.getChainBalance(chainData);
   }
 
   // recieves the destination address for the exported asset
-  //TODO: test and validate
+  // TODO: test and validate
   @Get('/importANT')
   async importANT(@Body() avaxAssetID: string) {
     return this.avalancheService.sendAntsFromXtoC(avaxAssetID);
   }
 
-  //TODO: test and validate
+  // TODO: test and validate
   @Get('/exportANT')
   async exportANT(@Body() avaxAssetID: string) {
     return this.avalancheService.receiveAntsFromXtoC(avaxAssetID);
   }
 
-  //TODO: test and validate
+  // TODO: test and validate
   @Get('/importAssetToC')
   async importAssetToC() {
     return this.avalancheService.importAssetToC();
   }
 
-  //TODO: test and validate
+  // TODO: test and validate
   @Get('/exportAssetFromX')
   async exportAssetFromX(@Body() amount: string) {
     return this.avalancheService.exportAssetFromX(Number(amount));
   }
 
-  //TODO: test and validate
+  // TODO: test and validate
   @Get('/canPayFee')
   async canPayFee(@Body() account: {xChainAddress:string, assetID:string}) {
     return this.avalancheService.canPayFee(account.xChainAddress, account.assetID);
   }
 
-  //TODO: test and validate
+  // TODO: test and validate
   @Get('/getChainHexBalance')
   async getChainHexBalance(@Body() chexAddress : string) {
     return this.avalancheService.getChainHexBalance(chexAddress);
@@ -84,22 +88,25 @@ export class AvalancheController {
       c_chain: null,
       wallet: null,
     };
-    //TODO:cleanup the Token interface
+    // TODO:cleanup the Token interface
     const token: Partial<Token> = {...asset, transactions};
     const response = await this.avalancheService.createAssetTransaction(token);
     return { txid: txid, status: 200 };
   }
 
+  // TODO: Add role decorator: admin route 
   @Get('/validateMnemonic')
   async validateMnemonic() {
     return this.avalancheService.validateMnemonic();
   }
 
+  // TODO: Add role decorator: admin route 
   @Get('/listAddresses')
   async listAddresses() {
     return this.avalancheService.listAddresses();
   }
 
+  // TODO: Add role decorator: admin route 
   @Get('/createAddress')
   createAddress() {
     return this.avalancheService.createAddress();

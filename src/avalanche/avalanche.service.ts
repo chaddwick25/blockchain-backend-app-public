@@ -53,6 +53,20 @@ import configuration from './config/configuration';
 
 @Injectable()
 export class AvalancheService implements OnModuleInit {
+    // Avalanche API  config variables
+    private avalancheAPI: Avalanche;
+    private xchain: AVMAPI;
+    private cchain: EVMAPI;
+    private pchain: PlatformVMAPI;
+    private cAddressStrings: string[];
+    private xAddressStrings: string[];
+    private xChainBlockchainID: string;
+    private cChainBlockchainID: string;
+    private xKeychain: KeyChain;
+    private cKeychain: EVMKeyChain;
+    private avaxAssetID: string;
+    private cHexAddress: string;
+
    constructor(
     @InjectRepository(Token)
     private readonly tokenRepository: EntityRepository<Token>,
@@ -63,19 +77,6 @@ export class AvalancheService implements OnModuleInit {
     private configService: ConfigService
   ) {}
 
-  // chain config variables
-  private avalancheAPI: Avalanche;
-  private xchain: AVMAPI;
-  private cchain: EVMAPI;
-  private pchain: PlatformVMAPI;
-  private cAddressStrings: string[];
-  private xAddressStrings: string[];
-  private xChainBlockchainID: string;
-  private cChainBlockchainID: string;
-  private xKeychain: KeyChain;
-  private cKeychain: EVMKeyChain;
-  private avaxAssetID: string;
-  private cHexAddress: string;
 
   async onModuleInit(): Promise<void> {
     // Using the config Service within the onModuleInit creates weird errors 
@@ -101,20 +102,20 @@ export class AvalancheService implements OnModuleInit {
     this.cKeychain.importKey(privKey);
     this.cAddressStrings = this.cKeychain.getAddressStrings();
     this.xAddressStrings = this.xKeychain.getAddressStrings();
-    this.avaxAssetID = Defaults.network[config.avalanche.networkID].X.avaxAssetID;
-    this.xChainBlockchainID = Defaults.network[config.avalanche.networkID].X.blockchainID;
-    this.cChainBlockchainID = Defaults.network[config.avalanche.networkID].C.blockchainID;
+    this.avaxAssetID = Defaults.network[networkID].X.avaxAssetID;
+    this.xChainBlockchainID = Defaults.network[networkID].X.blockchainID;
+    this.cChainBlockchainID = Defaults.network[networkID].C.blockchainID;
     this.cHexAddress = config.avalanche.cHexAddress
   }
 
-  //TODO: implement and test
+  // TODO: implement and test
   async createAvaxProfile(id: string) {
     const profile = await this.metamaskRepo.findOne({ id });
     if(profile?.encryptedPassword == null) {
       try {
         // TODO: change to constant after creating seperate ENV files 
         let { address } = profile
-        //TODO:implement a more robust password generator
+        // TODO:implement a more robust password generator
         const password = Math.floor(Math.random() * 1000000).toString();
         const encryptedProfile: { encryptedPassword: string, iv: string } = await this.encrypt(password)
         await this.verifyEncryption(encryptedProfile.encryptedPassword, password, encryptedProfile.iv)
@@ -124,7 +125,7 @@ export class AvalancheService implements OnModuleInit {
         }
         const hashedPassword = await argon2.hash(password);
         await this.avalancheAPI.NodeKeys().createUser(address, hashedPassword)
-        //TODO: rethink creating a address after creating user login
+        // TODO: rethink creating a address after creating user login
         await this.xchain.createAddress(address, hashedPassword)
         const xchainAddress = await this.xchain.listAddresses(address, hashedPassword)
         profile.encryptedPassword = encryptedProfile.encryptedPassword;
@@ -375,15 +376,13 @@ export class AvalancheService implements OnModuleInit {
   }
 
   // https://github.com/ava-labs/avalanchejs/blob/cba408fadf52c4a36a13f378e3a3c89f5778aa51/examples/evm/buildImportTx-xchain.ts
-  async receiveAntsFromXtoC(assetID) {
-    const cHexAddress = this.configService.get<string>('HEX_ADDRESS');
+  // TODO: dynamically assign cHexAddress
+  async receiveAntsFromXtoC(assetID, cHexAddress = this.cHexAddress) {
     const baseFeeResponse: string = await this.cchain.getBaseFee();
     const baseFee = new BN(parseInt(baseFeeResponse, 16) / 1e9);
     let fee: BN = baseFee;
-
     // TODO:check if avax balance can pay the TransactionFee
     // Implement canPayFee to check wallet balance before attempting a transaction
-
     const evmUTXOResponse: any = await this.cchain.getUTXOs(
       this.cAddressStrings,
       this.xChainBlockchainID,
@@ -416,7 +415,7 @@ export class AvalancheService implements OnModuleInit {
   async sendAntsFromXtoC(assetID) {
     const locktime: BN = new BN(0);
     const asOf: BN = UnixNow();
-    //TODO: dynamically assign memo
+    // TODO: dynamically assign memo
     const memo: Buffer = Buffer.from(
       'AVM utility method buildExportTx to export ANT to the C-Chain from the X-Chain',
     );
@@ -425,7 +424,6 @@ export class AvalancheService implements OnModuleInit {
     );
     const utxoSet: UTXOSet = avmUTXOResponse.utxos;
     const amount: BN = new BN(500);
-
     const threshold: number = 1;
     const unsignedTx: UnsignedTx = await this.xchain.buildExportTx(
       utxoSet,
@@ -460,7 +458,6 @@ export class AvalancheService implements OnModuleInit {
         this.xAddressStrings,
       );
       const utxoSet: UTXOSet = avmUTXOResponse.utxos;
-
       const amount: BN = new BN(asset.initialSupply);
       const vcapSecpOutput = new SECPTransferOutput(
         amount,
@@ -468,16 +465,15 @@ export class AvalancheService implements OnModuleInit {
         locktime,
         threshold,
       );
+
       const initialStates: InitialStates = new InitialStates();
       initialStates.addOutput(vcapSecpOutput);
-
       const secpMintOutput: SECPMintOutput = new SECPMintOutput(
         xAddresses,
         locktime,
         threshold,
       );
       outputs.push(secpMintOutput);
-
       const unsignedTx: UnsignedTx = await this.xchain.buildCreateAssetTx(
         utxoSet,
         this.xAddressStrings,
@@ -500,7 +496,7 @@ export class AvalancheService implements OnModuleInit {
   }
 
   // TODO:finish later 
-  //adds a transaction_id to the relative transaction(x_chain, c_chain and wallet)
+  // Adds a transaction_id to the relative transaction(x_chain, c_chain and wallet)
   async updateAssetTransaction(dto: Partial<Token>) {
     // const user = await this.usersRepository.findOneOrFail({ id });
     // wrap(user).assign(dto);
