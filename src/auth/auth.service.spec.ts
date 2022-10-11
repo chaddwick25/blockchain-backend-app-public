@@ -5,7 +5,6 @@ import { getRepositoryToken } from '@mikro-orm/nestjs';
 import { JwtService } from '@nestjs/jwt';
 import { Test, TestingModule } from '@nestjs/testing';
 import { MockFunctionMetadata, ModuleMocker } from 'jest-mock';
-
 import { AuthService } from './auth.service';
 
 const moduleMocker = new ModuleMocker(global);
@@ -46,7 +45,6 @@ describe('AuthService', () => {
         }
       })
       .compile();
-
     service = module.get<AuthService>(AuthService);
   });
 
